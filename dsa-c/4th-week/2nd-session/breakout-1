@@ -1,0 +1,154 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX 256
+
+// Structure for Huffman Tree Node
+struct Node {
+    char data;
+    int freq;
+    struct Node *left;
+    struct Node *right;
+};
+
+// Global dictionary to store generated character paths
+char dictionary[MAX][MAX];
+
+// Create a new node
+struct Node* createNode(char data, int freq) {
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node));
+    newNode->data = data;
+    newNode->freq = freq;
+    newNode->left = NULL;
+    newNode->right = NULL;
+    return newNode;
+}
+
+// Swap nodes
+void swap(struct Node** a, struct Node** b) {
+    struct Node* temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+// Sort nodes by frequency
+void sortNodes(struct Node* arr[], int size) {
+    for (int i = 0; i < size - 1; i++) {
+        for (int j = 0; j < size - i - 1; j++) {
+            if (arr[j]->freq > arr[j + 1]->freq) {
+                swap(&arr[j], &arr[j + 1]);
+            }
+        }
+    }
+}
+
+// Traverse tree to generate and store prefix codes (0s and 1s)
+void buildDictionary(struct Node* root, int path[], int top) {
+    if (root->left) {
+        path[top] = 0;
+        buildDictionary(root->left, path, top + 1);
+    }
+    if (root->right) {
+        path[top] = 1;
+        buildDictionary(root->right, path, top + 1);
+    }
+    // Leaf Node: save path string into dictionary mapping
+    if (root->left == NULL && root->right == NULL) {
+        int i;
+        for (i = 0; i < top; i++) {
+            dictionary[(unsigned char)root->data][i] = path[i] + '0';
+        }
+        dictionary[(unsigned char)root->data][i] = '\0';
+        printf("%c : %s\n", root->data, dictionary[(unsigned char)root->data]);
+    }
+}
+
+// ENCODING: Converts words into a full code of 0s and 1s
+void encodeText(const char* text, char* encodedOutput) {
+    encodedOutput[0] = '\0';
+    for (int i = 0; text[i] != '\0'; i++) {
+        strcat(encodedOutput, dictionary[(unsigned char)text[i]]);
+    }
+}
+
+// DECODING: Converts a full code of 0s and 1s back into words
+void decodeText(struct Node* root, const char* encodedStr) {
+    struct Node* current = root;
+    printf("Decoded Output : ");
+    
+    for (int i = 0; encodedStr[i] != '\0'; i++) {
+        if (encodedStr[i] == '0') {
+            current = current->left;
+        } else if (encodedStr[i] == '1') {
+            current = current->right;
+        }
+
+        // If leaf is reached, print symbol and jump back to tree top
+        if (current->left == NULL && current->right == NULL) {
+            printf("%c", current->data);
+            current = root;
+        }
+    }
+    printf("\n");
+}
+
+int main() {
+    char input[1000];
+    printf("Enter text to compress: ");
+    if (fgets(input, sizeof(input), stdin) == NULL) return 1;
+    input[strcspn(input, "\n")] = 0; // strip trailing newline
+
+    // Step 1: Count character occurrences dynamic allocation
+    int counts[MAX] = {0};
+    for (int i = 0; input[i] != '\0'; i++) {
+        counts[(unsigned char)input[i]]++;
+    }
+
+    struct Node* nodes[MAX];
+    int currentSize = 0;
+
+    for (int i = 0; i < MAX; i++) {
+        if (counts[i] > 0) {
+            nodes[currentSize++] = createNode((char)i, counts[i]);
+        }
+    }
+
+    if (currentSize == 0) {
+        printf("Empty input string provided.\n");
+        return 0;
+    }
+
+    // Step 2: Construct Huffman Tree using sorted array structure
+    while (currentSize > 1) {
+        sortNodes(nodes, currentSize);
+
+        struct Node* left = nodes[0];
+        struct Node* right = nodes[1];
+
+        struct Node* internalNode = createNode('$', left->freq + right->freq);
+        internalNode->left = left;
+        internalNode->right = right;
+
+        // Apply clean left-shift logic fix
+        nodes[1] = internalNode;
+        for (int i = 0; i < currentSize - 1; i++) {
+            nodes[i] = nodes[i + 1];
+        }
+        currentSize--;
+    }
+
+    struct Node* root = nodes[0];
+
+    // Step 3: Map individual codes
+    printf("\n--- Generated Huffman Dictionary ---\n");
+    int pathTracker[MAX];
+    buildDictionary(root, pathTracker, 0);
+    printf("------------------------------------\n");
+
+    // Step 4: Encode text to full binary bitstream
+    char fullEncodedBitstream[10000];
+    encodeText(input, fullEncodedBitstream);
+    printf("\nEncoded Bitstream Code:\n%s\n\n", fullEncodedBitstream);
+
+    // Step
